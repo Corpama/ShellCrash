@@ -63,8 +63,7 @@ modify_json() {
 EOF
     #生成add_hosts.json
     if [ "$hosts_opt" != "OFF" ]; then #本机hosts
-        sys_hosts=/etc/hosts
-        [ -s /data/etc/custom_hosts ] && sys_hosts=/data/etc/custom_hosts
+        [ -s /data/etc/custom_hosts ] && custom_hosts='"/data/etc/custom_hosts",'
         #NTP劫持
         cat >"$TMPDIR"/jsons/add_hosts.json <<EOF
 {
@@ -74,8 +73,9 @@ EOF
         "type": "hosts",
         "tag": "hosts",
         "path": [
-          "$sys_hosts",
-          "$HOME/.hosts"
+          $custom_hosts
+          "$HOME/.hosts",
+		  "/etc/hosts"
         ],
         "predefined": {
           "localhost": [
@@ -97,11 +97,14 @@ EOF
 EOF
     fi
     #生成dns.json
-    [ "$ipv6_dns" != "未开启" ] && strategy='prefer_ipv4' || strategy='ipv4_only'
+    [ "$ipv6_dns" != "OFF" ] && strategy='prefer_ipv4' || strategy='ipv4_only'
     #获取detour出口
-    auto_detour=$(grep -E '"type": "urltest"' -A 1 "$TMPDIR"/jsons/outbounds.json | grep '"tag":' | head -n 1 | sed 's/^[[:space:]]*"tag": //;s/,$//')
+	auto_detour=$(grep -E '"type": "urltest"' -A 1 "$TMPDIR"/jsons/outbounds.json | grep '自动' | head -n 1 | sed 's/^[[:space:]]*"tag": //;s/,$//')
+    [ -z "$auto_detour" ] && auto_detour=$(grep -E '"type": "urltest"' -A 1 "$TMPDIR"/jsons/outbounds.json | grep '"tag":' | head -n 1 | sed 's/^[[:space:]]*"tag": //;s/,$//')
     [ -z "$auto_detour" ] && auto_detour=$(grep -E '"type": "selector"' -A 1 "$TMPDIR"/jsons/outbounds.json | grep '"tag":' | head -n 1 | sed 's/^[[:space:]]*"tag": //;s/,$//')
     [ -z "$auto_detour" ] && auto_detour='"DIRECT"'
+	#ecs优化
+	[ "$ecs_subnet" = ON ] && . "$CRASHDIR"/libs/get_ecsip.sh
     #根据dns模式生成
     [ "$dns_mod" = "redir_host" ] && {
         global_dns=dns_proxy
@@ -126,20 +129,25 @@ EOF
     #防泄露设置
     [ "$dns_protect" = "OFF" ] && sed -i 's/"server": "dns_proxy"/"server": "dns_direct"/g' "$TMPDIR"/jsons/route.json
     #生成add_rule_set.json
-    [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ] && ! grep -Eq '"tag" *:[[:space:]]*"cn"' "$CRASHDIR"/jsons/*.json &&
+    [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ] && ! grep -Eq '"tag" *:[[:space:]]*"cn"' "$CRASHDIR"/jsons/*.json && {
+		[ "$crashcore" = "singboxr" ] && srs_path='"path": "./ruleset/cn.srs",'
         cat >"$TMPDIR"/jsons/add_rule_set.json <<EOF
 {
   "route": {
     "rule_set": [
       {
         "tag": "cn",
-        "type": "local",
-        "path": "./ruleset/cn.srs"
+        "type": "remote",
+        "format": "binary",
+        $srs_path
+        "url": "https://testingcf.jsdelivr.net/gh/DustinWin/ruleset_geodata@sing-box-ruleset/cn.srs",
+        "download_detour": "DIRECT"
       }
     ]
   }
 }
 EOF
+}
     cat >"$TMPDIR"/jsons/dns.json <<EOF
 {
   "dns": {
@@ -149,6 +157,7 @@ EOF
         $(parse_singbox_dns "$dns_fallback")
 		"routing_mark": $routing_mark,
 		"detour": $auto_detour,
+		"client_subnet": "$ecs_address",
         "domain_resolver": "dns_resolver"
       },
       {
@@ -188,7 +197,7 @@ EOF
 EOF
     #生成add_route.json
     #域名嗅探配置
-    [ "$sniffer" = "已启用" ] && sniffer_set='{ "action": "sniff", "timeout": "500ms" },'
+    [ "$sniffer" = ON ] && sniffer_set='{ "action": "sniff", "timeout": "500ms" },'
 	[ "$ts_service" = ON ] && tailscale_set='{ "inbound": [ "ts-ep" ], "port": 53, "action": "hijack-dns" },'
     cat >"$TMPDIR"/jsons/add_route.json <<EOF
 {
@@ -256,7 +265,7 @@ EOF
 		. "$CRASHDIR"/libs/sb_inbounds.sh
 	}
     if [ "$redir_mod" = "混合模式" -o "$redir_mod" = "Tun模式" ]; then
-        [ "ipv6_redir" = '已开启' ] && ipv6_address='"fe80::e5c5:2469:d09b:609a/64",'
+        [ "ipv6_redir" = 'ON' ] && ipv6_address='"fe80::e5c5:2469:d09b:609a/64",'
         cat >>"$TMPDIR"/jsons/tun.json <<EOF
 {
   "inbounds": [
@@ -335,7 +344,7 @@ EOF
     sed -i '/"process_name": "[^"]*",/d' "$TMPDIR"/jsons/route.json
     sed -i 's/"auto_detect_interface": true/"auto_detect_interface": false/g' "$TMPDIR"/jsons/route.json
     #跳过本地tls证书验证
-    if [ "$skip_cert" != "未开启" ]; then
+    if [ "$skip_cert" != "OFF" ]; then
         sed -i 's/"insecure": false/"insecure": true/' "$TMPDIR"/jsons/outbounds.json "$TMPDIR"/jsons/providers.json 2>/dev/null
     else
         sed -i 's/"insecure": true/"insecure": false/' "$TMPDIR"/jsons/outbounds.json "$TMPDIR"/jsons/providers.json 2>/dev/null

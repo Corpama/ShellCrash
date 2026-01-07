@@ -18,8 +18,7 @@ error_down(){
 upgrade() {
     while true; do
         echo "-----------------------------------------------"
-        echo -ne "\033[32m正在检查更新！\033[0m\r"
-        checkupdate
+        [ -z "$version_new" ] && checkupdate
         [ -z "$core_v" ] && core_v=$crashcore
         core_v_new=$(eval echo \$"$crashcore"_v)
         echo -e "\033[30;47m欢迎使用更新功能：\033[0m"
@@ -41,7 +40,7 @@ upgrade() {
         echo -e " 8 \033[32m配置自动更新\033[0m"
         echo -e " 9 \033[31m卸载ShellCrash\033[0m"
         echo "-----------------------------------------------"
-        echo -e "99 \033[36m鸣谢！\033[0m"
+        echo -e " 99 \033[36m鸣谢！\033[0m"
         echo "-----------------------------------------------"
         echo -e " 0 返回上级菜单"
         echo "-----------------------------------------------"
@@ -107,6 +106,7 @@ upgrade() {
 
 #检查更新
 checkupdate(){
+	echo -ne "\033[32m正在检查更新！\033[0m\r"
 	get_bin "$TMPDIR"/version_new version echooff
 	[ "$?" = "0" ] && {
 		version_new=$(cat "$TMPDIR"/version_new)
@@ -134,7 +134,7 @@ getscripts(){
 		echo "-----------------------------------------------"
 		echo "开始解压文件！"
 		mkdir -p "$CRASHDIR" > /dev/null
-		tar -zxf ""$TMPDIR"/ShellCrash.tar.gz" ${tar_para} -C "$CRASHDIR"/
+		tar -zxf "$TMPDIR/ShellCrash.tar.gz" ${tar_para} -C "$CRASHDIR"/
 		if [ $? -ne 0 ];then
 			echo -e "\033[33m文件解压失败！\033[0m"
 			error_down
@@ -389,97 +389,108 @@ setziptype(){
 	esac
 	setconfig zip_type "$zip_type"
 }
-setcore(){ #内核选择菜单
-	#获取核心及版本信息
-	[ -z "$crashcore" ] && crashcore="unknow"
-	[ -z "$zip_type" ] && zip_type="tar.gz"
-	echo "$crashcore" | grep -q 'singbox' && core_old=singbox || core_old=clash
-	[ -n "$custcorelink" ] && custcore="$(echo $custcorelink | sed 's#.*github.com##; s#/releases/download/#@#; s#-linux.*$##')"
-	###
-	echo "-----------------------------------------------"
-	[ -z "$cpucore" ] && check_cpucore
-	echo -e "当前内核：\033[42;30m $crashcore \033[47;30m$core_v\033[0m"
-	echo -e "当前系统处理器架构：\033[32m $cpucore \033[0m"
-	echo -e "\033[33m请选择需要使用的核心版本！\033[0m"
-	echo -e "\033[36m如需本地上传，请将.upx .gz .tar.gz文件上传至 /tmp 目录后重新运行crash命令\033[0m"
-	echo "-----------------------------------------------"
-	echo -e "1 \033[43;30m Mihomo  \033[0m：	\033[32m(原meta内核)支持全面\033[0m"
-	echo -e " >>\033[32m$meta_v   		\033[33m占用略高\033[0m"
-	echo -e "  说明文档：	\033[36;4mhttps://wiki.metacubex.one\033[0m"
-	echo -e "2 \033[43;30m SingBoxR \033[0m：	\033[32m支持全面\033[0m"
-	echo -e " >>\033[32m$singboxr_v  	\033[33m使用reF1nd增强分支\033[0m"
-	echo -e "  说明文档：	\033[36;4mhttps://sing-boxr.dustinwin.us.kg\033[0m"
-	[ "$zip_type" = 'upx' ] && {
-	echo -e "3 \033[43;30m SingBox \033[0m：	\033[32m占用较低\033[0m"
-	echo -e " >>\033[32m$singbox_v  		\033[33m不支持providers\033[0m"
-	echo -e "  说明文档：	\033[36;4mhttps://sing-box.sagernet.org\033[0m"
-	}
-	[ "$zip_type" = 'upx' ] && {
-	echo -e "4 \033[43;30m Clash \033[0m：	\033[32m占用低\033[0m"
-	echo -e " >>\033[32m$clash_v  		\033[33m不安全,已停止维护\033[0m"
-	echo -e "  说明文档：	\033[36;4mhttps://lancellc.gitbook.io\033[0m"
-	}
-	echo "-----------------------------------------------"
-	echo -e "5 切换版本分支及压缩方式:	\033[32m$zip_type\033[0m"
-	echo -e "6 \033[36m使用自定义内核\033[0m	$custcore"
-	echo -e "7 \033[32m更新当前内核\033[0m"
-	echo "-----------------------------------------------"
-	echo "9 手动指定处理器架构"
-	echo "-----------------------------------------------"
-	echo "0 返回上级菜单"
-	read -p "请输入对应数字 > " num
-	case "$num" in
-	0)
-	;;
-	1)
-		[ -d "/jffs" ] && {
-			echo -e "\033[31mMeta内核使用的GeoSite.dat数据库在华硕设备存在被系统误删的问题，可能无法使用!\033[0m"
-			sleep 3
-		}
-		crashcore=meta
-		custcorelink=''
-		getcore
-	;;
-	2)
-		crashcore=singboxr
-		custcorelink=''
-		getcore
-	;;
-	3)
-		crashcore=singbox
-		custcorelink=''
-		getcore
-	;;
-	4)
-		crashcore=clash
-		custcorelink=''
-		getcore
-	;;
-	5)
-		setziptype
-		setcore
-	;;
-	6)
-		setcustcore
-		setcore
-	;;
-	7)
-		getcore
-	;;
-	9)
-		setcpucore
-	;;
-	*)
-		errornum
-	;;
-	esac
+
+# 内核选择菜单
+setcore() {
+    while true; do
+        # 获取核心及版本信息
+        [ -z "$crashcore" ] && crashcore="unknow"
+        [ -z "$zip_type" ] && zip_type="tar.gz"
+        echo "$crashcore" | grep -q 'singbox' && core_old=singbox || core_old=clash
+        [ -n "$custcorelink" ] && custcore="$(echo $custcorelink | sed 's#.*github.com##; s#/releases/download/#@#; s#-linux.*$##')"
+        ###
+        echo "-----------------------------------------------"
+        [ -z "$cpucore" ] && check_cpucore
+        echo -e "当前内核：\033[42;30m $crashcore \033[47;30m$core_v\033[0m"
+        echo -e "当前系统处理器架构：\033[32m $cpucore \033[0m"
+        echo -e "\033[33m请选择需要使用的核心版本！\033[0m"
+        echo -e "\033[36m如需本地上传，请将.upx .gz .tar.gz文件上传至 /tmp 目录后重新运行crash命令\033[0m"
+        echo "-----------------------------------------------"
+        echo -e "1 \033[43;30m Mihomo  \033[0m：	\033[32m(原meta内核)支持全面\033[0m"
+        echo -e " >>\033[32m$meta_v   		\033[33m占用略高\033[0m"
+        echo -e "  说明文档：	\033[36;4mhttps://wiki.metacubex.one\033[0m"
+        echo -e "2 \033[43;30m SingBoxR \033[0m：	\033[32m支持全面\033[0m"
+        echo -e " >>\033[32m$singboxr_v  	\033[33m使用reF1nd增强分支\033[0m"
+        echo -e "  说明文档：	\033[36;4mhttps://sing-boxr.dustinwin.us.kg\033[0m"
+        [ "$zip_type" = 'upx' ] && {
+            echo -e "3 \033[43;30m SingBox \033[0m：	\033[32m占用较低\033[0m"
+            echo -e " >>\033[32m$singbox_v  		\033[33m不支持providers\033[0m"
+            echo -e "  说明文档：	\033[36;4mhttps://sing-box.sagernet.org\033[0m"
+        }
+        [ "$zip_type" = 'upx' ] && {
+            echo -e "4 \033[43;30m Clash \033[0m：	\033[32m占用低\033[0m"
+            echo -e " >>\033[32m$clash_v  		\033[33m不安全,已停止维护\033[0m"
+            echo -e "  说明文档：	\033[36;4mhttps://lancellc.gitbook.io\033[0m"
+        }
+        echo "-----------------------------------------------"
+        echo -e "5 切换版本分支及压缩方式:	\033[32m$zip_type\033[0m"
+        echo -e "6 \033[36m使用自定义内核\033[0m	$custcore"
+        echo -e "7 \033[32m更新当前内核\033[0m"
+        echo "-----------------------------------------------"
+        echo "9 手动指定处理器架构"
+        echo "-----------------------------------------------"
+        echo "0 返回上级菜单"
+        read -p "请输入对应数字 > " num
+        case "$num" in
+        "" | 0)
+            break
+            ;;
+        1)
+            [ -d "/jffs" ] && {
+                echo -e "\033[31mMeta内核使用的GeoSite.dat数据库在华硕设备存在被系统误删的问题，可能无法使用!\033[0m"
+                sleep 3
+            }
+            crashcore=meta
+            custcorelink=''
+            getcore
+            break
+            ;;
+        2)
+            crashcore=singboxr
+            custcorelink=''
+            getcore
+            break
+            ;;
+        3)
+            crashcore=singbox
+            custcorelink=''
+            getcore
+            break
+            ;;
+        4)
+            crashcore=clash
+            custcorelink=''
+            getcore
+            break
+            ;;
+        5)
+            setziptype
+            ;;
+        6)
+            setcustcore
+            ;;
+        7)
+            getcore
+            break
+            ;;
+        9)
+            setcpucore
+            break
+            ;;
+        *)
+            errornum
+            sleep 1
+            break
+            ;;
+        esac
+    done
 }
 
 #数据库
 getgeo(){ #下载Geo文件
 	#生成链接
 	echo "-----------------------------------------------"
-	echo 正在从服务器获取数据库文件…………
+	echo "正在从服务器获取数据库文件…………"
 	get_bin "$TMPDIR"/${geoname} bin/geodata/$geotype
 	if [ "$?" = "1" ];then
 		echo "-----------------------------------------------"
@@ -504,6 +515,7 @@ getgeo(){ #下载Geo文件
 	fi
 	sleep 1
 }
+
 getcustgeo(){
 	echo "-----------------------------------------------"
 	echo "正在获取数据库文件…………"
@@ -523,46 +535,53 @@ getcustgeo(){
 	fi
 	sleep 1
 }
-checkcustgeo(){
-	[ "$api_tag" = "latest" ] && api_url=latest || api_url="tags/$api_tag"
-	[ ! -s "$TMPDIR"/geo.list ] && {
-		echo -e "\033[32m正在查找可更新的数据库文件！\033[0m"
-		webget "$TMPDIR"/github_api https://api.github.com/repos/${project}/releases/${api_url}
-		release_tag=$(cat "$TMPDIR"/github_api | grep '"tag_name":' | awk -F '"' '{print $4}')
-		cat "$TMPDIR"/github_api | grep "browser_download_url" | grep -oE 'releases/download.*' | grep -oiE 'geosite.*\.dat"$|country.*\.mmdb"$|.*.mrs|.*.srs' | sed 's|.*/||' | sed 's/"//' > "$TMPDIR"/geo.list
-		rm -rf "$TMPDIR"/github_api
-	}
-	if [ -s "$TMPDIR"/geo.list ];then
-		echo -e "请选择需要更新的数据库文件："
-		echo "-----------------------------------------------"
-		cat "$TMPDIR"/geo.list | awk '{print " "NR" "$1}'
-		echo -e " 0 返回上级菜单"
-		echo "-----------------------------------------------"
-		read -p "请输入对应数字 > " num
-		case "$num" in
-		0)
-		;;
-		[1-99])
-			if [ "$num" -le "$(wc -l < "$TMPDIR"/geo.list)" ];then
-				geotype=$(sed -n "$num"p "$TMPDIR"/geo.list)
-				[ -n "$(echo $geotype | grep -oiE 'GeoSite.*dat')" ] && geoname=GeoSite.dat
-				[ -n "$(echo $geotype | grep -oiE 'Country.*mmdb')" ] && geoname=Country.mmdb
-				[ -n "$(echo $geotype | grep -oiE '.*(.srs|.mrs)')" ] && geoname=$geotype
-				custgeolink=https://github.com/${project}/releases/download/${release_tag}/${geotype}
-				getcustgeo
-				checkcustgeo
-			else
-				errornum
-			fi
-		;;
-		*)
-			errornum
-		;;
-		esac
-	else
-		echo -e "\033[31m查找失败，请尽量在服务启动后再使用本功能！\033[0m"
-		sleep 1
-	fi
+
+checkcustgeo() {
+    while true; do
+        [ "$api_tag" = "latest" ] && api_url=latest || api_url="tags/$api_tag"
+        [ ! -s "$TMPDIR"/geo.list ] && {
+            echo -e "\033[32m正在查找可更新的数据库文件！\033[0m"
+            webget "$TMPDIR"/github_api https://api.github.com/repos/${project}/releases/${api_url}
+            release_tag=$(cat "$TMPDIR"/github_api | grep '"tag_name":' | awk -F '"' '{print $4}')
+            cat "$TMPDIR"/github_api | grep "browser_download_url" | grep -oE 'releases/download.*' | grep -oiE 'geosite.*\.dat"$|country.*\.mmdb"$|.*.mrs|.*.srs' | sed 's|.*/||' | sed 's/"//' >"$TMPDIR"/geo.list
+            rm -rf "$TMPDIR"/github_api
+        }
+        if [ -s "$TMPDIR"/geo.list ]; then
+            echo -e "请选择需要更新的数据库文件："
+            echo "-----------------------------------------------"
+            cat "$TMPDIR"/geo.list | awk '{print " "NR" "$1}'
+            echo -e " 0 返回上级菜单"
+            echo "-----------------------------------------------"
+            read -p "请输入对应数字 > " num
+            case "$num" in
+            "" | 0)
+                break
+                ;;
+            [1-99])
+                if [ "$num" -le "$(wc -l <"$TMPDIR"/geo.list)" ]; then
+                    geotype=$(sed -n "$num"p "$TMPDIR"/geo.list)
+                    [ -n "$(echo $geotype | grep -oiE 'GeoSite.*dat')" ] && geoname=GeoSite.dat
+                    [ -n "$(echo $geotype | grep -oiE 'Country.*mmdb')" ] && geoname=Country.mmdb
+                    [ -n "$(echo $geotype | grep -oiE '.*(.srs|.mrs)')" ] && geoname=$geotype
+                    custgeolink=https://github.com/${project}/releases/download/${release_tag}/${geotype}
+                    getcustgeo
+                else
+                    errornum
+                    sleep 1
+                    break
+                fi
+                ;;
+            *)
+                errornum
+                sleep 1
+                beak
+                ;;
+            esac
+        else
+            echo -e "\033[31m查找失败，请尽量在服务启动后再使用本功能！\033[0m"
+            sleep 1
+        fi
+    done
 }
 
 # 下载自定义数据库文件
@@ -641,9 +660,9 @@ setgeo() {
 		echo "-----------------------------------------------"
 		echo -e " 3 Mihomo精简版GeoIP_cn数据库(约0.1mb)	\033[33m$cn_mini_v\033[0m"
 		echo -e " 4 Mihomo完整版GeoSite数据库(约5mb)	\033[33m$geosite_v\033[0m"
-		echo -e " 5 Mihomo-mrs数据库常用包(约1mb)	\033[33m$mrs_v\033[0m"
 		echo "-----------------------------------------------"
-		echo -e " 6 Singbox-srs数据库常用包(约0.8mb)	\033[33m$srs_v\033[0m"
+		echo -e " 5 Mihomo-mrs数据库常用包(约1mb,非必要勿用)"
+		echo -e " 6 Singbox-srs数据库常用包(约0.8mb,非必要勿用)"
 		echo "-----------------------------------------------"
 		echo -e " 8 \033[32m自定义数据库文件\033[0m"
 		echo -e " 9 \033[31m清理数据库文件\033[0m"
@@ -715,145 +734,158 @@ done
 }
 
 #Dashboard
-getdb(){ 
-	dblink="${update_url}/"
-	echo "-----------------------------------------------"
-	echo 正在连接服务器获取安装文件…………
-	get_bin "$TMPDIR"/clashdb.tar.gz bin/dashboard/${db_type}.tar.gz
-	if [ "$?" = "1" ];then
-		echo "-----------------------------------------------"
-		echo -e "\033[31m文件下载失败！\033[0m"
-		echo "-----------------------------------------------"
-		error_down
-		setdb
-	else
-		echo -e "\033[33m下载成功，正在解压文件！\033[0m"
-		mkdir -p $dbdir > /dev/null
-		tar -zxf ""$TMPDIR"/clashdb.tar.gz" ${tar_para} -C $dbdir > /dev/null
-		[ $? -ne 0 ] && echo "文件解压失败！" && rm -rf "$TMPDIR"/clashfm.tar.gz && exit 1
-		#修改默认host和端口
-		if [ "$db_type" = "clashdb" -o "$db_type" = "meta_db" -o "$db_type" = "zashboard" ];then
-			sed -i "s/127.0.0.1/${host}/g" $dbdir/assets/*.js
-			sed -i "s/9090/${db_port}/g" $dbdir/assets/*.js
-		elif [ "$db_type" = "meta_xd" ];then
-			sed -i "s/127.0.0.1:9090/${host}:${db_port}/g" $dbdir/_nuxt/*.js
-		else
-			sed -i "s/127.0.0.1:9090/${host}:${db_port}/g" $dbdir/*.html
-		fi
-		#写入配置文件
-		setconfig hostdir "'$hostdir'"
-		echo "-----------------------------------------------"
-		echo -e "\033[32m面板安装成功！\033[36m如未生效，请使用【Ctrl+F5】强制刷新浏览器！！！\033[0m"
-		rm -rf "$TMPDIR"/clashdb.tar.gz
-	fi
-	sleep 1
+getdb() {
+    dblink="${update_url}/"
+    echo "-----------------------------------------------"
+    echo "正在连接服务器获取安装文件…………"
+    get_bin "$TMPDIR"/clashdb.tar.gz bin/dashboard/${db_type}.tar.gz
+    if [ "$?" = "1" ]; then
+        echo "-----------------------------------------------"
+        echo -e "\033[31m文件下载失败！\033[0m"
+        echo "-----------------------------------------------"
+        error_down
+        return 1
+    else
+        echo -e "\033[33m下载成功，正在解压文件！\033[0m"
+        mkdir -p $dbdir >/dev/null
+        tar -zxf "$TMPDIR/clashdb.tar.gz" ${tar_para} -C $dbdir >/dev/null
+        [ $? -ne 0 ] && echo "文件解压失败！" && rm -rf "$TMPDIR"/clashfm.tar.gz && exit 1
+        #修改默认host和端口
+        if [ "$db_type" = "clashdb" -o "$db_type" = "meta_db" -o "$db_type" = "zashboard" ]; then
+            sed -i "s/127.0.0.1/${host}/g" $dbdir/assets/*.js
+            sed -i "s/9090/${db_port}/g" $dbdir/assets/*.js
+        elif [ "$db_type" = "meta_xd" ]; then
+            sed -i "s/127.0.0.1:9090/${host}:${db_port}/g" $dbdir/_nuxt/*.js
+        else
+            sed -i "s/127.0.0.1:9090/${host}:${db_port}/g" $dbdir/*.html
+        fi
+        #写入配置文件
+        setconfig hostdir "'$hostdir'"
+        echo "-----------------------------------------------"
+        echo -e "\033[32m面板安装成功！\033[36m如未生效，请使用【Ctrl+F5】强制刷新浏览器！！！\033[0m"
+        rm -rf "$TMPDIR"/clashdb.tar.gz
+    fi
+    sleep 1
 }
-setdb(){
-	dbdir(){
-		if [ -f /www/clash/CNAME -o -f "$CRASHDIR"/ui/CNAME ];then
-			echo "-----------------------------------------------"
-			echo -e "\033[31m检测到您已经安装过本地面板了！\033[0m"
-			echo "-----------------------------------------------"
-			read -p "是否升级/覆盖安装？[1/0] > " res
-			if [ "$res" = 1 ]; then
-				rm -rf "$BINDIR"/ui
-				[ -f /www/clash/CNAME ] && rm -rf /www/clash && dbdir=/www/clash
-				[ -f "$CRASHDIR"/ui/CNAME ] && rm -rf "$CRASHDIR"/ui && dbdir="$CRASHDIR"/ui
-				getdb
-			else
-				setdb
-				echo -e "\033[33m安装已取消！\033[0m"
-			fi
-		elif [ -w /www -a -n "$(pidof nginx)" ];then
-			echo "-----------------------------------------------"
-			echo -e "请选择面板\033[33m安装目录：\033[0m"
-			echo "-----------------------------------------------"
-			echo -e " 1 在${CRASHDIR}/ui目录安装"
-			echo -e " 2 在/www/clash目录安装"
-			echo "-----------------------------------------------"
-			echo " 0 返回上级菜单"
-			read -p "请输入对应数字 > " num
 
-			if [ "$num" = '1' ]; then
-				dbdir="$CRASHDIR"/ui
-				hostdir=":$db_port/ui"
-				getdb
-			elif [ "$num" = '2' ]; then
-				dbdir=/www/clash
-				hostdir='/clash'
-				getdb
-			else
-				setdb
-				echo -e "\033[33m安装已取消！\033[0m"
-			fi
-		else
-				dbdir="$CRASHDIR"/ui
-				hostdir=":$db_port/ui"
-				getdb
-		fi
-	}
+dbdir() {
+    if [ -f /www/clash/CNAME -o -f "$CRASHDIR"/ui/CNAME ]; then
+        echo "-----------------------------------------------"
+        echo -e "\033[31m检测到您已经安装过本地面板了！\033[0m"
+        echo "-----------------------------------------------"
+        read -p "是否升级/覆盖安装？[1/0] > " res
+        if [ "$res" = 1 ]; then
+            rm -rf "$BINDIR"/ui
+            [ -f /www/clash/CNAME ] && rm -rf /www/clash && dbdir=/www/clash
+            [ -f "$CRASHDIR"/ui/CNAME ] && rm -rf "$CRASHDIR"/ui && dbdir="$CRASHDIR"/ui
+            getdb
+        else
+            echo -e "\033[33m安装已取消！\033[0m"
+            return 1
+        fi
+    elif [ -w /www -a -n "$(pidof nginx)" ]; then
+        echo "-----------------------------------------------"
+        echo -e "请选择面板\033[33m安装目录：\033[0m"
+        echo "-----------------------------------------------"
+        echo -e " 1 在${CRASHDIR}/ui目录安装"
+        echo -e " 2 在/www/clash目录安装"
+        echo "-----------------------------------------------"
+        echo " 0 返回上级菜单"
+        read -p "请输入对应数字 > " num
+        case "$num" in
+        "" | 0)
+            return 0
+            ;;
+        1)
+            dbdir="$CRASHDIR"/ui
+            hostdir=": $db_port/ui"
+            getdb
+            ;;
+        2)
+            dbdir=/www/clash
+            hostdir='/clash'
+            getdb
+            ;;
+        *)
+            errornum
+            sleep 1
+            return 1
+            ;;
+        esac
+    else
+        dbdir="$CRASHDIR"/ui
+        hostdir=":$db_port/ui"
+        getdb
+    fi
+}
 
-	echo "-----------------------------------------------"
-	echo -e "\033[36m安装本地版dashboard管理面板\033[0m"
-	echo -e "\033[32m打开管理面板的速度更快且更稳定\033[0m"
-	echo "-----------------------------------------------"
-	echo -e "请选择面板\033[33m安装类型：\033[0m"
-	echo "-----------------维护中------------------------"
-	echo -e " 1 安装\033[32mzashboard面板\033[0m(约2.2mb)"
-	echo -e " 2 安装\033[32mMetaXD面板\033[0m(约1.5mb)"
-	echo -e " 3 安装\033[32mYacd-Meta魔改面板\033[0m(约1.7mb)"
-	echo "---------------已停止维护----------------------"
-	echo -e " 4 安装\033[32m基础面板\033[0m(约500kb)"
-	echo -e " 5 安装\033[32mMeta基础面板\033[0m(约800kb)"
-	echo -e " 6 安装\033[32mYacd面板\033[0m(约1.1mb)"
-	echo "-----------------------------------------------"
-	echo -e " 9 卸载\033[33m本地面板\033[0m"
-	echo " 0 返回上级菜单"
-	read -p "请输入对应数字 > " num
-
-	case "$num" in
-	0) ;;
-	1)
-		db_type=zashboard
-		setconfig external_ui_url "https://github.com/Zephyruso/zashboard/releases/latest/download/dist-cdn-fonts.zip"
-		dbdir
-		;;
-	2)
-		db_type=meta_xd
-		setconfig external_ui_url "https://raw.githubusercontent.com/juewuy/ShellCrash/update/bin/dashboard/meta_xd.tar.gz"
-		dbdir
-		;;
-	3)
-		db_type=meta_yacd
-		dbdir
-		;;
-	4)
-		db_type=clashdb
-		dbdir
-		;;
-	5)
-		db_type=meta_db
-		dbdir
-		;;
-	6)
-		db_type=yacd
-		dbdir
-		;;
-	9)
-		read -p "确认卸载本地面板？(1/0) > " res
-		if [ "$res" = 1 ];then
-			rm -rf /www/clash
-			rm -rf "$CRASHDIR"/ui
-			rm -rf "$BINDIR"/ui
-			echo "-----------------------------------------------"
-			echo -e "\033[31m面板已经卸载！\033[0m"
-			sleep 1
-		fi
-		;;
-	*)
-		errornum
-		;;
-	esac
+setdb() {
+    while true; do
+        echo "-----------------------------------------------"
+        echo -e "\033[36m安装本地版dashboard管理面板\033[0m"
+        echo -e "\033[32m打开管理面板的速度更快且更稳定\033[0m"
+        echo "-----------------------------------------------"
+        echo -e "请选择面板\033[33m安装类型：\033[0m"
+        echo "-----------------维护中------------------------"
+        echo -e " 1 安装\033[32mzashboard面板\033[0m(约2.2mb)"
+        echo -e " 2 安装\033[32mMetaXD面板\033[0m(约1.5mb)"
+        echo -e " 3 安装\033[32mYacd-Meta魔改面板\033[0m(约1.7mb)"
+        echo "---------------已停止维护----------------------"
+        echo -e " 4 安装\033[32m基础面板\033[0m(约500kb)"
+        echo -e " 5 安装\033[32mMeta基础面板\033[0m(约800kb)"
+        echo -e " 6 安装\033[32mYacd面板\033[0m(约1.1mb)"
+        echo "-----------------------------------------------"
+        echo -e " 9 卸载\033[33m本地面板\033[0m"
+        echo " 0 返回上级菜单"
+        read -p "请输入对应数字 > " num
+        case "$num" in
+        "" | 0)
+            break
+            ;;
+        1)
+            db_type=zashboard
+            setconfig external_ui_url "https://github.com/Zephyruso/zashboard/releases/latest/download/dist-cdn-fonts.zip"
+            dbdir
+            ;;
+        2)
+            db_type=meta_xd
+            setconfig external_ui_url "https://raw.githubusercontent.com/juewuy/ShellCrash/update/bin/dashboard/meta_xd.tar.gz"
+            dbdir
+            ;;
+        3)
+            db_type=meta_yacd
+            dbdir
+            ;;
+        4)
+            db_type=clashdb
+            dbdir
+            ;;
+        5)
+            db_type=meta_db
+            dbdir
+            ;;
+        6)
+            db_type=yacd
+            dbdir
+            ;;
+        9)
+            read -p "确认卸载本地面板？(1/0) > " res
+            if [ "$res" = 1 ]; then
+                rm -rf /www/clash
+                rm -rf "$CRASHDIR"/ui
+                rm -rf "$BINDIR"/ui
+                echo "-----------------------------------------------"
+                echo -e "\033[31m面板已经卸载！\033[0m"
+                sleep 1
+            fi
+            ;;
+        *)
+            errornum
+            sleep 1
+            break
+            ;;
+        esac
+    done
 }
 
 #根证书
@@ -917,6 +949,7 @@ saveserver() {
 	setconfig update_url "'$update_url'"
 	setconfig url_id $url_id
 	setconfig release_type $release_type
+	version_new=''
 	echo "-----------------------------------------------"
 	echo -e "\033[32m源地址切换成功！\033[0m"
 }
@@ -952,19 +985,21 @@ setserver() {
 			break
 		;;
 		[1-99])
-			url_id_new=$(grep -E "^1|$release_name" "$CRASHDIR"/configs/servers.list | sed -n ""$num"p" | awk '{print $1}')
+			url_id_new=$(grep -E "^1|$release_name" "$CRASHDIR"/configs/servers.list | sed -n "$num"p | awk '{print $1}')
 			if [ -z "$url_id_new" ];then
 				errornum
 				sleep 1
 				continue
 			elif [ "$url_id_new" -ge 200 ];then
-				update_url=$(grep -E "^1|$release_name" "$CRASHDIR"/configs/servers.list | sed -n ""$num"p" | awk '{print $3}')
+				update_url=$(grep -E "^1|$release_name" "$CRASHDIR"/configs/servers.list | sed -n "$num"p | awk '{print $3}')
 				url_id=''
-				continue
+				saveserver
+				break
 			else
 				url_id=$url_id_new
 				update_url=''
-				continue
+				saveserver
+				break
 			fi
 			unset url_id_new
 		;;
