@@ -219,6 +219,8 @@ EOF
     done
     #合并完整配置文件
     cut -c 1- "$TMPDIR"/set.yaml $yaml_dns $yaml_hosts $yaml_user $yaml_others $yaml_add >"$TMPDIR"/config.yaml
+	#某些平台会在生成订阅时在文件最后加上...，这会导致最终合并的config.yaml不符合预期，直接将其去掉
+	sed -i '/^\.\.\.$/d' "$TMPDIR"/config.yaml
     #测试自定义配置文件
     "$TMPDIR"/CrashCore -t -d "$BINDIR" -f "$TMPDIR"/config.yaml >/dev/null
     if [ "$?" != 0 ]; then
