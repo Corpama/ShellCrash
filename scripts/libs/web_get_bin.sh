@@ -13,8 +13,8 @@ get_bin() { #专用于项目内部文件的下载
         fi
     else
         bin_url="$update_url/$2"
-        echo "$2" | grep -q '^bin/' && bin_url=$(echo "$bin_url" | sed 's/master/update/') #/bin文件改为在update分支下载
-        echo "$2" | grep -qE '^public/|^rules/' && bin_url=$(echo "$bin_url" | sed 's/master/dev/') #/public和/rules文件改为在dev分支下载   
+        echo "$2" | grep -q '^bin/' && bin_url=$(echo "$bin_url" | sed 's/master_corpa/update/') #/bin文件改为在update分支下载
+        echo "$2" | grep -qE '^public/|^rules/' && bin_url=$(echo "$bin_url" | sed 's/master_corpa/dev/') #/public和/rules文件改为在dev分支下载   
         echo "bin_url is :$bin_url"
     fi
     webget "$1" "$bin_url" "$3" "$4" "$5" "$6"
