@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) Juewuy
 
-[ -z "$url" ] && url="https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@dev"
+[ -z "$url" ] && url="https://testingcf.jsdelivr.net/gh/Corpama/ShellCrash@dev"
 type bash &>/dev/null && shtype=bash || shtype=sh
 [ -n "$(echo -e | grep e)" ] && echo=echo || echo='echo -e'
 echo "***********************************************"
@@ -48,7 +48,7 @@ webget() {
 }
 
 error_down() {
-    $echo "请参考 \033[32mhttps://github.com/juewuy/ShellCrash/blob/master/README_CN.md"
+    $echo "请参考 \033[32mhttps://github.com/Corpama/ShellCrash/blob/master/README_CN.md"
     $echo "\033[33m使用其他安装源重新安装！\033[0m"
 }
 
